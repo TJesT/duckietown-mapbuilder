@@ -1,8 +1,6 @@
 from dataclasses import dataclass
-from typing import Tuple, overload
+from typing import Tuple
 from os.path import expanduser
-import png
-import cv2
 import numpy as np
 
 @dataclass(init=True, repr=True, eq=True, frozen=True)
@@ -54,7 +52,7 @@ class MapBuilder:
                 if bitmap[i][j] != 0:
                     neighbours_count[i][j] = MapBuilder._countNeighbors(bitmap, i, j)
                     
-        tiles = [['' for i in range(width)] for j in range(height)]
+        tiles = [['floor' for i in range(height)] for j in range(width)]
 
         for i in range (0, width):
             for j in range (0, height):
@@ -160,32 +158,3 @@ class MapBuilder:
 
         MapBuilder._saveMap(map_name, duckie, signs)
 
-if __name__ == '__main__':
-    map_name = 'map1'
-    S = 600 #высота экрана
-    h = 10  #высота
-    w = 10  #ширина
-
-    mult = min(S//h, S//w)
-    h1 = h*mult
-    w1 = w*mult
-
-    def paint(event, x, y, flags, param):
-        if event == cv2.EVENT_LBUTTONDOWN:
-            if nul[y//mult][x//mult] == 0:
-                nul[y//mult][x//mult] = 255
-            else:
-                nul[y//mult][x//mult] = 0
-    
-    nul = np.zeros((h, w))
-    cv2.namedWindow(map_name)
-    cv2.setMouseCallback(map_name, paint)
-    while True:
-        img = cv2.resize(nul, (w1, h1), interpolation=cv2.INTER_AREA)
-        cv2.imshow(map_name, img)
-        if cv2.waitKey(20) & 0xFF == 27:
-            break
-    
-    png.from_array(nul.astype(int).tolist(), 'L').save(f'{map_name}.png')
-
-    MapBuilder.parse(map_name, nul, inject=True)
