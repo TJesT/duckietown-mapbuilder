@@ -122,26 +122,26 @@ class MapBuilder:
                 ## - TILE      = tiles[i][j]
 
                 if tiles[i][j] == '3way_left/W':
-                    signs.append(_Sign('sign_T_intersect', 90, x1-0.5, y1-1.25))
-                    signs.append(_Sign('sign_left_T_intersect', 0, x1-0.25, y1-1.25))
+                    signs.append(_Sign('sign_T_intersect',        90, x1-0.50, y1-1.25))
+                    signs.append(_Sign('sign_left_T_intersect',    0, x1-0.25, y1-1.25))
                     signs.append(_Sign('sign_right_T_intersect', 180, x1-1.25, y1+0.25))
                 elif tiles[i][j] == '3way_left/S':
-                    signs.append(_Sign('sign_T_intersect', 0, x1-1.25, y1-0.5))
+                    signs.append(_Sign('sign_T_intersect',        0, x1-1.25, y1-0.5))
                     signs.append(_Sign('sign_left_T_intersect', -90, x1-1.25, y1-0.75))
                     signs.append(_Sign('sign_right_T_intersect', 90, x1+0.25, y1+0.25))
                 elif tiles[i][j] == '3way_left/E':
-                    signs.append(_Sign('sign_T_intersect', -90, x1-0.5, y1+0.25))
+                    signs.append(_Sign('sign_T_intersect',      -90, x1-0.50, y1+0.25))
                     signs.append(_Sign('sign_left_T_intersect', 180, x1-0.75, y1+0.25))
-                    signs.append(_Sign('sign_right_T_intersect', 0, x1+0.25, y1-1.25))
+                    signs.append(_Sign('sign_right_T_intersect',  0, x1+0.25, y1-1.25))
                 elif tiles[i][j] == '3way_left/N':
-                    signs.append(_Sign('sign_T_intersect', 180, x1+0.25, y1-0.5))
-                    signs.append(_Sign('sign_left_T_intersect', 90, x1+0.25, y1-0.25))
+                    signs.append(_Sign('sign_T_intersect',       180, x1+0.25, y1-0.50))
+                    signs.append(_Sign('sign_left_T_intersect',   90, x1+0.25, y1-0.25))
                     signs.append(_Sign('sign_right_T_intersect', -90, x1-1.25, y1-1.25))
                 elif tiles[i][j] == '4way':
                     signs.append(_Sign('sign_4_way_intersect', 180, x1-1.25, y1+0.25))
-                    signs.append(_Sign('sign_4_way_intersect', 90, x1+0.25, y1+0.25))
+                    signs.append(_Sign('sign_4_way_intersect',  90, x1+0.25, y1+0.25))
                     signs.append(_Sign('sign_4_way_intersect', -90, x1-1.25, y1-1.25))
-                    signs.append(_Sign('sign_4_way_intersect', 0, x1+0.25, y1-1.25))
+                    signs.append(_Sign('sign_4_way_intersect',   0, x1+0.25, y1-1.25))
         
         return signs
 
@@ -172,7 +172,7 @@ class MapBuilder:
             file_map.write('tile_size: 0.585')
     
     def parse(map_name: str, bitmap: np.ndarray, *, inject=False):
-        """Parses bitmap to file"""
+        """Parses bitmap and writes it file"""
 
         duckie = MapBuilder._bitmap2duckie(bitmap)
         signs  = MapBuilder._duckie2signs(duckie)
