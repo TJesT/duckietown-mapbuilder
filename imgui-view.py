@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable, Dict, Tuple
 
@@ -13,12 +14,29 @@ class _Item:
     shortcut: str
     onClick: Callable[[], None]
 
-class PygameView:
-    _BACKGROUND_COLOR_RGBA = (0, 0, 0, 1)
+class ImguiView(ABC):
+    def __init__(self) -> None:
+        self._QUIT_ITEM = tuple([_Item("Quit", "Cmd+Q", self.stop)])
 
-    def __init__(self, main_menu: Dict[str, Tuple[_Item]]=dict(), *, size: tuple) -> None:
+    @abstractmethod
+    def setup(self, main_menu: Dict[str, Tuple[_Item]], *, size: Tuple):
+        pass
+
+    @abstractmethod
+    def run(self):
+        pass
+
+    @abstractmethod
+    def stop(self):
+        pass
+
+
+class PygameImguiView(ImguiView):
+    _BACKGROUND_COLOR_RGBA = (0, 0, 0, 1)
+    
+    def setup(self, main_menu: Dict[str, Tuple[_Item]]=dict(), *, size: tuple) -> None:
         self._main_menu = main_menu
-        self._main_menu['File'] += tuple([_Item("Quit", "Cmd+Q", self.stop)])
+        self._main_menu['File'] += self._QUIT_ITEM
 
         self._size = size[:2]
 
@@ -74,6 +92,7 @@ class PygameView:
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
 
     def _render(self):
+        # proccess events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.stop()
@@ -82,16 +101,17 @@ class PygameView:
             
         self._impl.process_inputs()
 
+        # prepare rame
         imgui.new_frame()
 
         self._clearScreen()
 
         self._drawFrame()
 
+        # show frame
         imgui.render()
         self._impl.render(imgui.get_draw_data())
         pygame.display.flip()
-
 
 
 if __name__ == '__main__':
@@ -104,5 +124,6 @@ if __name__ == '__main__':
              _Item("Greet", "No bind", lambda: print("Hi !! Nice 2 meet you ^^"))]
         ))
     
-    view = PygameView(main_menu, size=(600,800))
+    view = PygameImguiView()
+    view.setup(main_menu, size=(600,800))
     view.run()
