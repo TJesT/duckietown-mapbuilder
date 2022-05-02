@@ -10,38 +10,58 @@ class _Sign:
     x: float
     y: float
 
+    def getSignsFor3wayW(x, y):
+        cx = x + 0.5
+        cy = y - 0.5
+        dx = 0.5
+        dy = 0.5
+        return _Sign('sign_T_intersect',        90, cx, cy-dy), \
+                _Sign('sign_left_T_intersect',    0, cx-dx, cy-dy), \
+                _Sign('sign_right_T_intersect', 180, cx-dx, cy+dy)
+    def getSignsFor3wayS(x, y):
+        cx = x + 0.5
+        cy = y - 0.5
+        dx = 0.5
+        dy = 0.5
+        return _Sign('sign_T_intersect',        0, cx-dx, cy),  \
+                _Sign('sign_left_T_intersect', -90, cx-dx, cy+dy), \
+                _Sign('sign_right_T_intersect', 90, cx+dx, cy+dy)
+    def getSignsFor3wayE(x, y):
+        cx = x + 0.5
+        cy = y - 0.5
+        dx = 0.5
+        dy = 0.5
+        return _Sign('sign_T_intersect',      -90, cx, cy+dy), \
+                _Sign('sign_left_T_intersect', 180, cx+dx, cy+dy), \
+                _Sign('sign_right_T_intersect',  0, cx+dx, cy-dy)
+    def getSignsFor3wayN(x, y):
+        cx = x + 0.5
+        cy = y - 0.5
+        dx = 0.5
+        dy = 0.5
+        return _Sign('sign_T_intersect',       180, cx+dx, cy), \
+                _Sign('sign_left_T_intersect',   90, cx+dx, cy-dy), \
+                _Sign('sign_right_T_intersect', -90, cx-dx, cy-dy)
+    def getSignsFor4way(x, y):
+        cx = x + 0.5
+        cy = y - 0.5
+        dx = 0.5
+        dy = 0.5
+        return _Sign('sign_4_way_intersect',   0, cx-dx, cy+dy), \
+                _Sign('sign_4_way_intersect', -90, cx+dx, cy+dy), \
+                _Sign('sign_4_way_intersect',  90, cx-dx, cy-dy),  \
+                _Sign('sign_4_way_intersect', 180, cx+dx, cy-dy)
+
 @dataclass(init=True, repr=True, eq=True, frozen=True)
 class _DuckieMap:
     tiles: Tuple[Tuple[str]]
     width: int
     height: int
 
-def _getTilesFor3wayW(x, y):
-    return _Sign('sign_T_intersect',        90, x-0.50, y-1.25), \
-            _Sign('sign_left_T_intersect',    0, x-0.25, y-1.25), \
-            _Sign('sign_right_T_intersect', 180, x-1.25, y+0.25)
-def _getTilesFor3wayS(x, y):
-    return _Sign('sign_T_intersect',        0, x-1.25, y-0.5),  \
-            _Sign('sign_left_T_intersect', -90, x-1.25, y-0.75), \
-            _Sign('sign_right_T_intersect', 90, x+0.25, y+0.25)
-def _getTilesFor3wayE(x, y):
-    return _Sign('sign_T_intersect',      -90, x-0.50, y+0.25), \
-            _Sign('sign_left_T_intersect', 180, x-0.75, y+0.25), \
-            _Sign('sign_right_T_intersect',  0, x+0.25, y-1.25)
-def _getTilesFor3wayN(x, y):
-    return _Sign('sign_T_intersect',       180, x+0.25, y-0.50), \
-            _Sign('sign_left_T_intersect',   90, x+0.25, y-0.25), \
-            _Sign('sign_right_T_intersect', -90, x-1.25, y-1.25)
-def _getTilesFor4way(x, y):
-    return _Sign('sign_4_way_intersect', 180, x-1.25, y+0.25), \
-            _Sign('sign_4_way_intersect',  90, x+0.25, y+0.25), \
-            _Sign('sign_4_way_intersect', -90, x-1.25, y-1.25), \
-            _Sign('sign_4_way_intersect',   0, x+0.25, y-1.25)
-
 class MapBuilder:
     _MAPS_PATH = '~/.local/lib/python3.8/site-packages/duckietown_world/data/gd1/maps'
     _MOVES = ((0, 1), (1, 0), (0, -1), (-1, 0))
-    _TILES = {0 : {(False, False, False, False):'floor'},
+    _TILE = {0 : {(False, False, False, False):'floor'},
              1 : {(True,  False, False, False):'straight/W', 
                   (False, True,  False, False):'straight/N',
                   (False, False, True,  False):'straight/W',
@@ -57,18 +77,17 @@ class MapBuilder:
                   (True,  True,  False, True): '3way_left/S',
                   (True,  True,  True,  False):'3way_left/W'},
              4 : {(True,  True,  True,  True): '4way'}}
-    _SIGNS = {'3way_left/W': _getTilesFor3wayW,
-             '3way_left/S':  _getTilesFor3wayS,
-             '3way_left/E':  _getTilesFor3wayE,
-             '3way_left/N':  _getTilesFor3wayN,
-             '4way':         _getTilesFor4way}
+    _SIGNS = {'3way_left/W': _Sign.getSignsFor3wayW,
+             '3way_left/S':  _Sign.getSignsFor3wayS,
+             '3way_left/E':  _Sign.getSignsFor3wayE,
+             '3way_left/N':  _Sign.getSignsFor3wayN,
+             '4way':         _Sign.getSignsFor4way}
 
-    
     def _countNeighbors(bitmap: np.ndarray, x: int, y: int) -> int:
         width, height = bitmap.shape
         count = 0
         for dx, dy in MapBuilder._MOVES:
-            if width > x + dx >= 0       \
+            if width > x + dx >= 0      \
                 and height > y + dy >= 0 \
                 and bitmap[x+dx][y+dy] == 255:
                 count += 1
@@ -78,17 +97,17 @@ class MapBuilder:
     def _hasNeighbours(bitmap: np.ndarray, x: int, y: int) -> Tuple[bool]:
         """if (x + dx_n, y + dy_n) has neigbour, then neighbour[n] is True"""
         if bitmap[x][y] == 0:
-            return False, False, False, False
+            return (False,) * 4
 
         width, height = bitmap.shape
         
-        neighbour = [False, False, False, False]
+        neighbour = [False, ] * 4
         
         for i, (dx, dy) in enumerate(MapBuilder._MOVES):
             neighbour[i] = width > x + dx >= 0 \
-                and height > y + dy >= 0       \
+                and height > y + dy >= 0        \
                 and bitmap[x+dx][y+dy] == 255
-        print(f'{x=}, {y=}')            
+          
         return tuple(neighbour)
 
     def _bitmap2duckie(bitmap: np.ndarray) -> _DuckieMap:
@@ -112,7 +131,7 @@ class MapBuilder:
                 COUNT     = neighbours_count[i][j]
                 NEIGHBOURS = has_neighbour
                 
-                tiles[i][j] = MapBuilder._TILES[COUNT][NEIGHBOURS]
+                tiles[i][j] = MapBuilder._TILE[COUNT][NEIGHBOURS]
         
         return _DuckieMap(tiles, width, height)
    
@@ -123,19 +142,20 @@ class MapBuilder:
         tiles, w, h = duckie.tiles, duckie.width, duckie.height
         
         signs = []
+        
         for i in range(0, w):
             for j in range (0, h):
-                x = j+1
-                y = i
-                TILE = tiles[i][j]
+                x = j
+                y = i - w + h
+                tile = tiles[i][j]
 
-                if TILE in MapBuilder._SIGNS.keys():
-                    signs.extend( MapBuilder._SIGNS[TILE](x, y) )
+                if tile in MapBuilder._SIGNS.keys():
+                    signs.extend( MapBuilder._SIGNS[tile](x, y) )
                 
         return signs
 
     def _saveMap(file_name: str, duckie: _DuckieMap, signs: Tuple[_Sign]):
-        """Generates valid Duckietown map and saves it"""
+        """Saves Duckietown map in valid format"""
 
         tiles = duckie.tiles
 
@@ -155,21 +175,30 @@ class MapBuilder:
                     f'  kind: {sign.type}\n'
                     f'  pos: [{sign.x}, {sign.y}]\n'
                     f'  rotate: {sign.rotate}\n'
-                    f'  height: 0.3\n'
+                    f'  height: {0.2}\n'
                 )
             
             file_map.write('tile_size: 0.585')
     
-    def parse(map_name: str, bitmap: np.ndarray, *, inject=False):
+    def load(name: str) -> np.ndarray:
+        """TODO: load bitmap from file"""
+        print(f'[MapBuilder] Load \'{name}\'')
+
+        bitmap = np.full((10, 10), 255, dtype=np.uint8)
+
+        return bitmap
+
+    def parse(name: str, bitmap: np.ndarray, *, inject=False):
         """Parses bitmap and writes it file"""
+        print(f'[MapBuilder] Parse \'{name}\'')
 
         duckie = MapBuilder._bitmap2duckie(bitmap)
         signs  = MapBuilder._duckie2signs(duckie)
         
         if inject:
-            map_name = expanduser(f'{MapBuilder._MAPS_PATH}/{map_name}.yaml')
+            name = expanduser(f'{MapBuilder._MAPS_PATH}/{name}.yaml')
         else:
-            map_name = f'{map_name}.txt'
+            name = f'{name}.txt'
 
-        MapBuilder._saveMap(map_name, duckie, signs)
+        MapBuilder._saveMap(name, duckie, signs)
 
