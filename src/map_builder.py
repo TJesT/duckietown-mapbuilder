@@ -1,62 +1,12 @@
-from dataclasses import dataclass
+from collections import namedtuple
+from bridson import poisson_disc_samples as pds
+from utills import *
 from typing import Tuple
 from os.path import expanduser
 import numpy as np
+import random
 
-@dataclass(init=True, repr=True, eq=True, frozen=True)
-class _Sign:
-    type: str
-    rotate: int
-    x: float
-    y: float
-
-    def getSignsFor3wayW(x, y):
-        cx = x + 0.5
-        cy = y - 0.5
-        dx = 0.5
-        dy = 0.5
-        return _Sign('sign_T_intersect',        90, cx, cy-dy), \
-                _Sign('sign_left_T_intersect',    0, cx-dx, cy-dy), \
-                _Sign('sign_right_T_intersect', 180, cx-dx, cy+dy)
-    def getSignsFor3wayS(x, y):
-        cx = x + 0.5
-        cy = y - 0.5
-        dx = 0.5
-        dy = 0.5
-        return _Sign('sign_T_intersect',        0, cx-dx, cy),  \
-                _Sign('sign_left_T_intersect', -90, cx-dx, cy+dy), \
-                _Sign('sign_right_T_intersect', 90, cx+dx, cy+dy)
-    def getSignsFor3wayE(x, y):
-        cx = x + 0.5
-        cy = y - 0.5
-        dx = 0.5
-        dy = 0.5
-        return _Sign('sign_T_intersect',      -90, cx, cy+dy), \
-                _Sign('sign_left_T_intersect', 180, cx+dx, cy+dy), \
-                _Sign('sign_right_T_intersect',  0, cx+dx, cy-dy)
-    def getSignsFor3wayN(x, y):
-        cx = x + 0.5
-        cy = y - 0.5
-        dx = 0.5
-        dy = 0.5
-        return _Sign('sign_T_intersect',       180, cx+dx, cy), \
-                _Sign('sign_left_T_intersect',   90, cx+dx, cy-dy), \
-                _Sign('sign_right_T_intersect', -90, cx-dx, cy-dy)
-    def getSignsFor4way(x, y):
-        cx = x + 0.5
-        cy = y - 0.5
-        dx = 0.5
-        dy = 0.5
-        return _Sign('sign_4_way_intersect',   0, cx-dx, cy+dy), \
-                _Sign('sign_4_way_intersect', -90, cx+dx, cy+dy), \
-                _Sign('sign_4_way_intersect',  90, cx-dx, cy-dy),  \
-                _Sign('sign_4_way_intersect', 180, cx+dx, cy-dy)
-
-@dataclass(init=True, repr=True, eq=True, frozen=True)
-class _DuckieMap:
-    tiles: Tuple[Tuple[str]]
-    width: int
-    height: int
+from map_generator import MapGenerator
 
 class MapBuilder:
     _MAPS_PATH = '~/.local/lib/python3.8/site-packages/duckietown_world/data/gd1/maps'
@@ -77,11 +27,11 @@ class MapBuilder:
                   (True,  True,  False, True): '3way_left/S',
                   (True,  True,  True,  False):'3way_left/W'},
              4 : {(True,  True,  True,  True): '4way'}}
-    _SIGNS = {'3way_left/W': _Sign.getSignsFor3wayW,
-             '3way_left/S':  _Sign.getSignsFor3wayS,
-             '3way_left/E':  _Sign.getSignsFor3wayE,
-             '3way_left/N':  _Sign.getSignsFor3wayN,
-             '4way':         _Sign.getSignsFor4way}
+    _SIGNS = {'3way_left/W': DuckieObject.getSignsFor3wayW,
+             '3way_left/S':  DuckieObject.getSignsFor3wayS,
+             '3way_left/E':  DuckieObject.getSignsFor3wayE,
+             '3way_left/N':  DuckieObject.getSignsFor3wayN,
+             '4way':         DuckieObject.getSignsFor4way}
 
     def _countNeighbors(bitmap: np.ndarray, x: int, y: int) -> int:
         width, height = bitmap.shape
@@ -110,7 +60,7 @@ class MapBuilder:
           
         return tuple(neighbour)
 
-    def _bitmap2duckie(bitmap: np.ndarray) -> _DuckieMap:
+    def _bitmap2duckie(bitmap: np.ndarray) -> DuckieMap:
         """Make Duckietown Map from bitmap"""
 
         width, height = bitmap.shape
@@ -133,10 +83,9 @@ class MapBuilder:
                 
                 tiles[i][j] = MapBuilder._TILE[COUNT][NEIGHBOURS]
         
-        return _DuckieMap(tiles, width, height)
+        return DuckieMap(tiles, width, height)
    
-
-    def _duckie2signs(duckie: _DuckieMap) -> Tuple[_Sign]:
+    def _duckie2signs(duckie: DuckieMap) -> Tuple[DuckieObject]:
         """Make sequence of Signs based on a Duckietown Map"""
 
         tiles, w, h = duckie.tiles, duckie.width, duckie.height
@@ -154,7 +103,25 @@ class MapBuilder:
                 
         return signs
 
-    def _saveMap(file_name: str, duckie: _DuckieMap, signs: Tuple[_Sign]):
+    def _generateRandomObjects(map_size: Tuple[int, int]) -> Tuple[DuckieObject]:
+        objects = ['tree', 'duckie']
+        hbounds = {'tree':   DuckieBHeight(0.3, 0.5),
+                'duckie': DuckieBHeight(0.08, 0.11)}
+        
+        width, height = map_size
+        positions = pds(width, height, r=0.75)
+
+        res = [
+            DuckieObject(obj:=random.choice(objects), 
+                random.randint(0, 359), 
+                y, # real x
+                x - width + height - 1, # real y
+                hbounds[obj].min + random.random() * hbounds[obj].dh) for x, y in positions
+        ]
+
+        return res
+
+    def _saveMap(file_name: str, duckie: DuckieMap, signs: Tuple[DuckieObject], randomness: Tuple[DuckieObject]):
         """Saves Duckietown map in valid format"""
 
         tiles = duckie.tiles
@@ -163,21 +130,21 @@ class MapBuilder:
             file_map.write('tiles:\n')
 
             for tile_line in tiles:
-                file_map.write('  - [')
-                file_map.write(', '.join(tile_line))
-                file_map.write(']\n')
+                line = ', '.join(tile_line)
+                file_map.write(f'  - [{line}]\n')
             
             file_map.write('objects:' + '\n')
             
             for i, sign in enumerate(signs, 1):
                 file_map.write(
-                    f' sign{i}:\n'
-                    f'  kind: {sign.type}\n'
-                    f'  pos: [{sign.x}, {sign.y}]\n'
-                    f'  rotate: {sign.rotate}\n'
-                    f'  height: {0.2}\n'
+                    sign.toGym(f'sign{i}')
                 )
-            
+
+            for i, tree in enumerate(randomness, 1):
+                file_map.write(
+                    tree.toGym(f'{tree.type}{i}')
+                )
+
             file_map.write('tile_size: 0.585')
     
     def load(name: str) -> np.ndarray:
@@ -188,17 +155,24 @@ class MapBuilder:
 
         return bitmap
 
-    def parse(name: str, bitmap: np.ndarray, *, inject=False):
+    def parse(name: str, bitmap: np.ndarray, *, inject=False, random=False):
         """Parses bitmap and writes it file"""
         print(f'[MapBuilder] Parse \'{name}\'')
 
         duckie = MapBuilder._bitmap2duckie(bitmap)
         signs  = MapBuilder._duckie2signs(duckie)
+        randomness = tuple()
+        if random:
+            randomness = MapBuilder._generateRandomObjects((duckie.width, duckie.height))
         
         if inject:
             name = expanduser(f'{MapBuilder._MAPS_PATH}/{name}.yaml')
         else:
             name = f'{name}.txt'
 
-        MapBuilder._saveMap(name, duckie, signs)
+        MapBuilder._saveMap(name, duckie, signs, randomness)
 
+if __name__ == '__main__':
+    generated = MapGenerator.generate((7, 4), show_generation=False)
+
+    MapBuilder.parse('generated', generated, inject=True, random=True)

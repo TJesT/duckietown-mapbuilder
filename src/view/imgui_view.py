@@ -1,5 +1,5 @@
-from .model import DataStock, MapData
-from .mapbuilder import MapBuilder
+from ..model.model import DataStock, MapData
+from ..map_builder import MapBuilder
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
