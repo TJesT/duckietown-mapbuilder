@@ -1,4 +1,3 @@
-from collections import namedtuple
 from bridson import poisson_disc_samples as pds
 from utills import *
 from typing import Tuple
@@ -6,11 +5,12 @@ from os.path import expanduser
 import numpy as np
 import random
 
+import cv2
+
 from map_generator import MapGenerator
 
 class MapBuilder:
     _MAPS_PATH = '~/.local/lib/python3.8/site-packages/duckietown_world/data/gd1/maps'
-    _MOVES = ((0, 1), (1, 0), (0, -1), (-1, 0))
     _TILE = {0 : {(False, False, False, False):'floor'},
              1 : {(True,  False, False, False):'straight/W', 
                   (False, True,  False, False):'straight/N',
@@ -36,7 +36,10 @@ class MapBuilder:
     def _countNeighbors(bitmap: np.ndarray, x: int, y: int) -> int:
         width, height = bitmap.shape
         count = 0
-        for dx, dy in MapBuilder._MOVES:
+
+        moves = ((0, 1), (1, 0), (0, -1), (-1, 0))
+
+        for dx, dy in moves:
             if width > x + dx >= 0      \
                 and height > y + dy >= 0 \
                 and bitmap[x+dx][y+dy] == 255:
@@ -50,10 +53,11 @@ class MapBuilder:
             return (False,) * 4
 
         width, height = bitmap.shape
+        moves = ((0, 1), (1, 0), (0, -1), (-1, 0))
         
         neighbour = [False, ] * 4
         
-        for i, (dx, dy) in enumerate(MapBuilder._MOVES):
+        for i, (dx, dy) in enumerate(moves):
             neighbour[i] = width > x + dx >= 0 \
                 and height > y + dy >= 0        \
                 and bitmap[x+dx][y+dy] == 255
@@ -92,10 +96,10 @@ class MapBuilder:
         
         signs = []
         
-        for i in range(0, w):
-            for j in range (0, h):
+        for i in range(w):
+            for j in range (h):
                 x = j
-                y = i - w + h
+                y = i - w + h - 1
                 tile = tiles[i][j]
 
                 if tile in MapBuilder._SIGNS.keys():
@@ -104,25 +108,69 @@ class MapBuilder:
         return signs
 
     def _generateRandomObjects(map_size: Tuple[int, int]) -> Tuple[DuckieObject]:
-        objects = ['tree', 'duckie']
-        hbounds = {'tree':   DuckieBHeight(0.3, 0.5),
+        objects = ['tree', 'duckie']                  # add object
+        hbounds = {'tree':   DuckieBHeight(0.3, 0.5), # add bounds
                 'duckie': DuckieBHeight(0.08, 0.11)}
         
+        round2f = lambda f: float(f'{f:.2f}')
+
         width, height = map_size
         positions = pds(width, height, r=0.75)
 
         res = [
             DuckieObject(obj:=random.choice(objects), 
                 random.randint(0, 359), 
-                y, # real x
-                x - width + height - 1, # real y
-                hbounds[obj].min + random.random() * hbounds[obj].dh) for x, y in positions
+                round2f(y),                      # real x
+                round2f(x - width + height - 1), # real y
+                round2f(hbounds[obj].min + random.random() * hbounds[obj].dh)) for x, y in positions
         ]
 
         return res
 
-    def _saveMap(file_name: str, duckie: DuckieMap, signs: Tuple[DuckieObject], randomness: Tuple[DuckieObject]):
-        """Saves Duckietown map in valid format"""
+    def _getMapOfVisibleObjects(bitmap: np.ndarray, objects: Tuple[DuckieObject]) -> list[list[list[DuckieObject]]]:
+        w, h = bitmap.shape[:2]
+        moves = ((0, 1), (1, 0), (0, -1), (-1, 0))
+        
+        coords_obj2map = lambda x, y: (y + w - h + 1, x)
+
+        result = [[[] for i in range(h)] for j in range(w)]
+        
+        for x in range(w):
+            for y in range(h):
+                if bitmap[x][y] == 0: 
+                    continue
+                
+                cx, cy = x + 0.5, y + 0.5
+                w_rect = RectArea(cx - 0.5, cx + 0.5, cy - 0.5, cy + 0.5)
+                h_rect = RectArea(cx - 0.5, cx + 0.5, cy - 0.5, cy + 0.5)
+                
+                for dx, dy in moves:
+                    if not (0 <= x + dx < w and 0 <= y + dy < h):
+                        continue
+                    if bitmap[x+dx, y+dy] == 0:
+                        continue
+
+                    if dx < 0:
+                        w_rect.x_min += dx
+                    else:
+                        w_rect.x_max += dx
+                    if dy < 0:
+                        h_rect.y_min += dy
+                    else:
+                        h_rect.y_max += dy
+
+                for obj in objects:
+                    ox, oy = coords_obj2map(obj.x, obj.y)
+                    if  (ox, oy) in w_rect or (ox, oy) in h_rect:
+                        result[x][y].append(obj)
+
+        return result
+
+    def _saveMap(file_name: str, 
+                duckie: DuckieMap, 
+                signs: Tuple[DuckieObject], 
+                randomness: Tuple[DuckieObject]):
+        """Saves Duckietown map with valid format"""
 
         tiles = duckie.tiles
 
@@ -140,9 +188,9 @@ class MapBuilder:
                     sign.toGym(f'sign{i}')
                 )
 
-            for i, tree in enumerate(randomness, 1):
+            for i, obj in enumerate(randomness, 1):
                 file_map.write(
-                    tree.toGym(f'{tree.type}{i}')
+                    obj.toGym(f'{obj.type}{i}')
                 )
 
             file_map.write('tile_size: 0.585')
@@ -155,16 +203,14 @@ class MapBuilder:
 
         return bitmap
 
-    def parse(name: str, bitmap: np.ndarray, *, inject=False, random=False):
+    def parse(name: str, bitmap: np.ndarray, *, inject=False, random=False, getvisible=False):
         """Parses bitmap and writes it file"""
         print(f'[MapBuilder] Parse \'{name}\'')
 
         duckie = MapBuilder._bitmap2duckie(bitmap)
         signs  = MapBuilder._duckie2signs(duckie)
-        randomness = tuple()
-        if random:
-            randomness = MapBuilder._generateRandomObjects((duckie.width, duckie.height))
-        
+        randomness = MapBuilder._generateRandomObjects((duckie.width, duckie.height)) if random else tuple()
+
         if inject:
             name = expanduser(f'{MapBuilder._MAPS_PATH}/{name}.yaml')
         else:
@@ -172,7 +218,31 @@ class MapBuilder:
 
         MapBuilder._saveMap(name, duckie, signs, randomness)
 
-if __name__ == '__main__':
-    generated = MapGenerator.generate((7, 4), show_generation=False)
+        return MapBuilder._getMapOfVisibleObjects(bitmap, signs + randomness) if getvisible else None
 
-    MapBuilder.parse('generated', generated, inject=True, random=True)
+if __name__ == '__main__':
+    generated = MapGenerator.generate((5, 8), show_generation=True)
+
+    visible = MapBuilder.parse('generated', generated, inject=True, random=True, getvisible=True)
+
+    window_size = (480, 480)
+
+    view = np.array(generated)
+    width, height = view.shape[:2]
+    scale = min(window_size[0]//width, window_size[1]//height)
+
+    # mouse callback function
+    def get_objects(event,x,y,flags,param):
+        if event == cv2.EVENT_LBUTTONDBLCLK:
+            print(visible[y//scale][x//scale], x//scale, y//scale)
+    
+    cv2.namedWindow('visible')
+    cv2.setMouseCallback('visible', get_objects)
+
+    while True:
+        view = cv2.resize(view, (height*scale, width*scale), interpolation=cv2.INTER_AREA)
+        cv2.imshow("visible", view)
+        if cv2.waitKey(25) & 0xFF == 27:
+            break
+
+    cv2.destroyAllWindows()

@@ -1,3 +1,4 @@
+from pyexpat.errors import XML_ERROR_INCOMPLETE_PE
 from typing import Tuple
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -44,7 +45,7 @@ class DuckieObject:
 
     def getSignsFor3wayW(x, y):
         cx = x + 0.5
-        cy = y - 0.5
+        cy = y + 0.5
         dx = 0.5
         dy = 0.5
         h  = 0.4
@@ -53,7 +54,7 @@ class DuckieObject:
                 DuckieObject('sign_right_T_intersect', 180, cx-dx+h, cy-dy, 0.2)
     def getSignsFor3wayS(x, y):
         cx = x + 0.5
-        cy = y - 0.5
+        cy = y + 0.5
         dx = 0.5
         dy = 0.5
         h  = 0.4
@@ -62,7 +63,7 @@ class DuckieObject:
                 DuckieObject('sign_right_T_intersect',  90, cx-dx, cy+dy-h, 0.2)
     def getSignsFor3wayE(x, y):
         cx = x + 0.5
-        cy = y - 0.5
+        cy = y + 0.5
         dx = 0.5
         dy = 0.5
         h  = 0.4
@@ -71,7 +72,7 @@ class DuckieObject:
                 DuckieObject('sign_right_T_intersect',  0, cx+dx-h, cy+dy, 0.2)
     def getSignsFor3wayN(x, y):
         cx = x + 0.5
-        cy = y - 0.5
+        cy = y + 0.5
         dx = 0.5
         dy = 0.5
         h  = 0.4
@@ -80,7 +81,7 @@ class DuckieObject:
                 DuckieObject('sign_right_T_intersect', -90, cx+dx, cy-dy+h, 0.2)
     def getSignsFor4way(x, y):
         cx = x + 0.5
-        cy = y - 0.5
+        cy = y + 0.5
         dx = 0.5
         dy = 0.5
         return DuckieObject('sign_4_way_intersect',   0, cx-dx, cy+dy, 0.2), \
@@ -102,6 +103,15 @@ class DuckieBHeight:
     @property
     def dh(self):
         return self.max - self.min
+
+@dataclass(init=True, repr=True, eq=True)
+class RectArea:
+    x_min: float; x_max: float;
+    y_min: float; y_max: float;
+    
+    def __contains__(self, item: tuple[int, int]) -> bool:
+        return self.x_min <= item[0] <= self.x_max \
+            and self.y_min <= item[1] <= self.y_max
 
 if __name__ == '__main__':
     s = DuckieBHeight(0.3, 0.5)
