@@ -4,9 +4,10 @@ import random
 from collections import namedtuple
 import numpy as np
 from PIL import Image
-from tileproc.tile_processing import Tile, get_tiles, state2image
+from tileproc.tile_processing import TILES_PATH, Tile, get_tiles, state2image
 from utills import Direction
 import cv2
+import os
 
 class MapGenerator:
     def _show_view(state: np.ndarray, window_size: tuple[int, int] = (480, 480)) -> None:
@@ -113,8 +114,17 @@ class MapGenerator:
         height_pad = height % 2
         width  //= 2
         height //= 2
-
-        tiles = get_tiles()
+        
+        tiles = list()
+        try:
+            tiles = get_tiles()
+        except FileNotFoundError as e:
+            os.mkdir('resources', 0o777)
+            os.mkdir(TILES_PATH, 0o777)
+            from tileproc.generate_tiles import generate_tiles
+            
+            generate_tiles()
+            tiles = get_tiles()
 
         weights = np.asarray([tile.weight for tile in tiles])
 

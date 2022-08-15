@@ -234,7 +234,7 @@ if __name__ == '__main__':
     # mouse callback function
     def get_objects(event,x,y,flags,param):
         if event == cv2.EVENT_LBUTTONDBLCLK:
-            print(visible[y//scale][x//scale], x//scale, y//scale)
+            print(visible[y//scale][x//scale], y//scale, x//scale)
     
     cv2.namedWindow('visible')
     cv2.setMouseCallback('visible', get_objects)
