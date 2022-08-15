@@ -1,4 +1,3 @@
-from pyexpat.errors import XML_ERROR_INCOMPLETE_PE
 from typing import Tuple
 from dataclasses import dataclass
 from enum import Enum, auto
