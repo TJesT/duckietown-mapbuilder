@@ -9,6 +9,9 @@ import cv2
 
 from map_generator import MapGenerator
 
+view = np.zeros((1, 1))
+scale = 1.0
+
 class MapBuilder:
     _MAPS_PATH = '~/.local/lib/python3.8/site-packages/duckietown_world/data/gd1/maps'
     _TILE = {0 : {(False, False, False, False):'floor'},
@@ -18,10 +21,10 @@ class MapBuilder:
                   (False, False, False, True): 'straight/N'},
              2 : {(True,  False, True,  False):'straight/W',
                   (False, True,  False, True): 'straight/N',
-                  (True,  True,  False, False):'curve_right/N',
+                  (True,  True,  False, False):'curve_left/W',
                   (False, True,  True,  False):'curve_left/N',
                   (False, False, True,  True): 'curve_left/E',
-                  (True,  False, False, True): 'curve_right/W'},
+                  (True,  False, False, True): 'curve_left/S'},
              3 : {(False, True,  True,  True): '3way_left/N',
                   (True,  False, True,  True): '3way_left/E',
                   (True,  True,  False, True): '3way_left/S',
@@ -115,7 +118,7 @@ class MapBuilder:
         round2f = lambda f: float(f'{f:.2f}')
 
         width, height = map_size
-        positions = pds(width, height, r=0.75)
+        positions = pds(width, height, r=0.65)
 
         res = [
             DuckieObject(obj:=random.choice(objects), 
@@ -127,7 +130,11 @@ class MapBuilder:
 
         return res
 
-    def _getMapOfVisibleObjects(bitmap: np.ndarray, objects: Tuple[DuckieObject]) -> list[list[list[DuckieObject]]]:
+    def _getMapOfVisibleObjects(bitmap: np.ndarray,
+                            duckie: DuckieMap, 
+                            objects: Tuple[DuckieObject]) -> list[list[list[DuckieObject]]]:
+        global view, scale
+        
         w, h = bitmap.shape[:2]
         moves = ((0, 1), (1, 0), (0, -1), (-1, 0))
         
@@ -141,27 +148,29 @@ class MapBuilder:
                     continue
                 
                 cx, cy = x + 0.5, y + 0.5
-                w_rect = RectArea(cx - 0.5, cx + 0.5, cy - 0.5, cy + 0.5)
-                h_rect = RectArea(cx - 0.5, cx + 0.5, cy - 0.5, cy + 0.5)
                 
+                area = ComplexArea(get_duckietile_area(duckie.tiles[x][y])(cx, cy))
+
+                # if duckie.tiles[x][y].startswith('curve_left'):
+                #     area_sect = area.get(0).get(0)
+                #     print(duckie.tiles[x][y], cx, cy)
+                #     print(area_sect)
+                #     view = cv2.ellipse(view, (int(area_sect.y_center*(scale)), int(area_sect.x_center*scale)), 
+                #         (int(area_sect.r*scale), int(area_sect.r*scale)), 0,
+                #         int(area_sect.theta_min/np.pi*180), int(area_sect.theta_max/np.pi*180), 128, thickness=5)
+                #     (0.5, 7.5) in area_sect
+
                 for dx, dy in moves:
                     if not (0 <= x + dx < w and 0 <= y + dy < h):
                         continue
                     if bitmap[x+dx, y+dy] == 0:
                         continue
-
-                    if dx < 0:
-                        w_rect.x_min += dx
-                    else:
-                        w_rect.x_max += dx
-                    if dy < 0:
-                        h_rect.y_min += dy
-                    else:
-                        h_rect.y_max += dy
+                    area.append(get_duckietile_area(duckie.tiles[x+dx][y+dy])(cx+dx, cy+dy))
 
                 for obj in objects:
                     ox, oy = coords_obj2map(obj.x, obj.y)
-                    if  (ox, oy) in w_rect or (ox, oy) in h_rect:
+                    if  (ox, oy) in area:
+                        # result[x][y].append((obj.type, (ox, oy), duckie.tiles[x][y]))
                         result[x][y].append(obj)
 
         return result
@@ -209,7 +218,34 @@ class MapBuilder:
 
         duckie = MapBuilder._bitmap2duckie(bitmap)
         signs  = MapBuilder._duckie2signs(duckie)
-        randomness = MapBuilder._generateRandomObjects((duckie.width, duckie.height)) if random else tuple()
+        randomness = MapBuilder._generateRandomObjects((duckie.width, duckie.height)) if random else list()
+        # randomness = [DuckieObject('duckie', 0, 8+1., 1+0+0., 0.10),
+        #             DuckieObject('duckie', 0, 8+0., 1+0+1., 0.10),
+        #             DuckieObject('duckie', 0, 8+0.5, 1+0+0.5, 0.10)] \
+        #             + [DuckieObject('tree', 0, 7+1., 1+1+0., 0.10),
+        #             DuckieObject('tree', 0, 7+0., 1+1+1., 0.10),
+        #             DuckieObject('tree', 0, 7+0.5, 1+1+0.5, 0.10)] \
+        #             + [DuckieObject('tree', 0, 7+1., 1+-1+0., 0.10),
+        #             DuckieObject('tree', 0, 7+0., 1+-1+1., 0.10),
+        #             DuckieObject('tree', 0, 7+0.5, 1+-1+0.5, 0.10)] \
+        #             + [DuckieObject('tree', 0, 9+1., 1+1+0., 0.10),
+        #             DuckieObject('tree', 0, 9+0., 1+1+1., 0.10),
+        #             DuckieObject('tree', 0, 9+0.5, 1+1+0.5, 0.10)] \
+        #             + [DuckieObject('tree', 0, 9+1., 1+-1+0., 0.10),
+        #             DuckieObject('tree', 0, 9+0., 1+-1+1., 0.10),
+        #             DuckieObject('tree', 0, 9+0.5, 1+-1+0.5, 0.10)] \
+        #             + [DuckieObject('tree', 0, 7+1., 1+0+0., 0.10),
+        #             DuckieObject('tree', 0, 7+0., 1+0+1., 0.10),
+        #             DuckieObject('tree', 0, 7+0.5, 1+0+0.5, 0.10)] \
+        #             + [DuckieObject('tree', 0, 9+1., 1+0+0., 0.10),
+        #             DuckieObject('tree', 0, 9+0., 1+0+1., 0.10),
+        #             DuckieObject('tree', 0, 9+0.5, 1+0+0.5, 0.10)] \
+        #             + [DuckieObject('tree', 0, 8+1., 1+1+0., 0.10),
+        #             DuckieObject('tree', 0, 8+0., 1+1+1., 0.10),
+        #             DuckieObject('tree', 0, 8+0.5, 1+1+0.5, 0.10)] \
+        #             + [DuckieObject('tree', 0, 8+1., 1+-1+0., 0.10),
+        #             DuckieObject('tree', 0, 8+0., 1+-1+1., 0.10),
+        #             DuckieObject('tree', 0, 8+0.5, 1+-1+0.5, 0.10)]
 
         if inject:
             name = expanduser(f'{MapBuilder._MAPS_PATH}/{name}.yaml')
@@ -218,29 +254,46 @@ class MapBuilder:
 
         MapBuilder._saveMap(name, duckie, signs, randomness)
 
-        return MapBuilder._getMapOfVisibleObjects(bitmap, signs + randomness) if getvisible else None
+        return MapBuilder._getMapOfVisibleObjects(bitmap, duckie, signs + randomness) if getvisible else None
 
 if __name__ == '__main__':
-    generated = MapGenerator.generate((5, 8), show_generation=True)
+    # generated = MapGenerator.generate((5, 8), show_generation=True)
+    generated = np.zeros((7,9), dtype=np.uint8)
+    generated[0, 2:] = 255
+    generated[-1,2:] = 255
+    generated[:, 2] = 255
+    generated[:,-1] = 255
+    generated[3, :] = 255
+    generated[:, 5] = 255
+    generated[3, 1] = 0
 
-    visible = MapBuilder.parse('generated', generated, inject=True, random=True, getvisible=True)
+    print(generated)
 
     window_size = (480, 480)
 
     view = np.array(generated)
-    width, height = view.shape[:2]
+    height, width = view.shape[:2]
     scale = min(window_size[0]//width, window_size[1]//height)
+
+    view = cv2.resize(view, (width*scale, height*scale), interpolation=cv2.INTER_AREA)
+
+    cv2.namedWindow('visible')
+
+    visible = MapBuilder.parse('generated', generated, inject=True, random=True, getvisible=True)
+    # print(*visible, sep='\n')
 
     # mouse callback function
     def get_objects(event,x,y,flags,param):
         if event == cv2.EVENT_LBUTTONDBLCLK:
-            print(visible[y//scale][x//scale], y//scale, x//scale)
+            print([d.type for d in visible[y//scale][x//scale]], y//scale, x//scale)
     
-    cv2.namedWindow('visible')
     cv2.setMouseCallback('visible', get_objects)
 
+    cv2.imshow("visible", view)
+    cv2.waitKey(0)
+
     while True:
-        view = cv2.resize(view, (height*scale, width*scale), interpolation=cv2.INTER_AREA)
+        view = cv2.resize(view, (width*scale, height*scale), interpolation=cv2.INTER_AREA)
         cv2.imshow("visible", view)
         if cv2.waitKey(25) & 0xFF == 27:
             break
