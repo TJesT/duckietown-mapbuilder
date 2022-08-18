@@ -1,5 +1,5 @@
 from bridson import poisson_disc_samples as pds
-from utills import *
+from src.utills import *
 from typing import Tuple
 from os.path import expanduser
 import numpy as np
@@ -7,7 +7,7 @@ import random
 
 import cv2
 
-from map_generator import MapGenerator
+from src.map_generator import MapGenerator
 
 view = np.zeros((1, 1))
 scale = 1.0

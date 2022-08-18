@@ -1,5 +1,5 @@
-from model.model import DataStock
-from view.imgui_view import PygameImguiView
+from src.model.model import DataStock
+from src.view.imgui_view import PygameImguiView
 
 def main():
     stock = DataStock()

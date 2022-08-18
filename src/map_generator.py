@@ -4,8 +4,8 @@ import random
 from collections import namedtuple
 import numpy as np
 from PIL import Image
-from tileproc.tile_processing import TILES_PATH, Tile, get_tiles, state2image
-from utills import Direction
+from src.tileproc.tile_processing import TILES_PATH, Tile, get_tiles, state2image
+from src.utills import Direction
 import cv2
 import os
 
